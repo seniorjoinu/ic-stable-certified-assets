@@ -5,7 +5,7 @@ library, but with data structures replaced with their stable memory analogs
 from [ic-stable-memory](https://github.com/seniorjoinu/ic-stable-memory).
 
 This library uses SCertifiedBTreeMap data collection, which is a Merkle tree stored completely in stable memory. This 
-allows, in contrast with the original implementation, to create canisters which simultaneously serve both: certified frontend 
+allows, easier than with the original implementation, to create canisters which simultaneously serve both: certified frontend 
 and certified backend at the same time.
 
 This is a reference implementation. Tests pass and it produces valid certificates on main-net, but don't use it for anything 
