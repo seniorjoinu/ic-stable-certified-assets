@@ -1,0 +1,17 @@
+[package]
+name = "example_project"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+candid = "0.8.4"
+ic-cdk = "0.6.10"
+ic-cdk-macros = "0.6.8"
+ic-stable-memory = { path = "../../ic-stable-memory" }
+ic-stable-certified-assets = { path = "../../ic-stable-certified-assets" }

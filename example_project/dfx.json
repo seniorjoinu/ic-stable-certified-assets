@@ -1,0 +1,16 @@
+{
+  "canisters": {
+    "example_project": {
+      "candid": "src/assets.did",
+      "package": "example_project",
+      "type": "rust"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "version": 1
+}
