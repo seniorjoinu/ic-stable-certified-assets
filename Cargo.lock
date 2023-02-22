@@ -394,7 +394,9 @@ dependencies = [
 
 [[package]]
 name = "ic-stable-memory"
-version = "0.4.0-rc2"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecce7e42f518564652f9db57550ee4f5451030ba22bc89f65793375ee331df82"
 dependencies = [
  "candid",
  "ic-cdk",
@@ -408,7 +410,9 @@ dependencies = [
 
 [[package]]
 name = "ic-stable-memory-derive"
-version = "0.4.1"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6fdb3a4f5e97e0d9a05fa6096214888c98ad405586c338fb99a7a6f608c7fee3"
 dependencies = [
  "proc-macro2",
  "quote",

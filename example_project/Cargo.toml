@@ -13,5 +13,5 @@ crate-type = ["cdylib"]
 candid = "0.8.4"
 ic-cdk = "0.6.10"
 ic-cdk-macros = "0.6.8"
-ic-stable-memory = { path = "../../ic-stable-memory" }
+ic-stable-memory = "0.4"
 ic-stable-certified-assets = { path = "../../ic-stable-certified-assets" }

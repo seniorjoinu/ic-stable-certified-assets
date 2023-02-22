@@ -32,7 +32,6 @@ use serde_bytes::ByteBuf;
 use sha2::Digest;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::ops::Deref;
 
 /// The amount of time a batch is kept alive. Modifying the batch
 /// delays the expiry further.
@@ -55,6 +54,9 @@ struct WrappedHash(pub Hash);
 impl AsHashTree for WrappedHash {
     fn root_hash(&self) -> Hash {
         leaf_hash(&self.0)
+    }
+    fn hash_tree(&self) -> HashTree {
+        leaf(self.0.to_vec())
     }
 }
 
@@ -161,7 +163,7 @@ impl State {
             .find_map(|alias_key| self.assets.get(&alias_key));
 
         if let Some(a) = aliased {
-            if a.get().is_aliased.unwrap_or(DEFAULT_ALIAS_ENABLED) {
+            if a.is_aliased.unwrap_or(DEFAULT_ALIAS_ENABLED) {
                 return Ok(a);
             }
         }
@@ -192,7 +194,7 @@ impl State {
 
     pub fn create_asset(&mut self, arg: CreateAssetArguments) -> Result<(), String> {
         if let Some(asset) = self.assets.get(&arg.key) {
-            if asset.get().content_type != arg.content_type {
+            if asset.content_type != arg.content_type {
                 return Err("create_asset: content type mismatch".to_string());
             }
         } else {
@@ -311,8 +313,7 @@ impl State {
     }
 
     pub fn retrieve(&self, key: &Key) -> Result<RcBytes, String> {
-        let asset_box = self.get_asset(key)?;
-        let asset = asset_box.get();
+        let asset = self.get_asset(key)?;
 
         let id_enc = asset
             .encodings
@@ -381,7 +382,7 @@ impl State {
             .debugless_unwrap();
         self.chunks.retain(|_, c| {
             self.batches
-                .get(&c.get().batch_id)
+                .get(&c.batch_id)
                 .map(|b| b.expires_at > now)
                 .unwrap_or(false)
         });
@@ -435,7 +436,6 @@ impl State {
             .iter()
             .map(|(key_box_ref, asset_box_ref)| {
                 let mut encodings: Vec<_> = asset_box_ref
-                    .get()
                     .encodings
                     .iter()
                     .map(|(enc_name, enc)| AssetEncodingDetails {
@@ -448,8 +448,8 @@ impl State {
                 encodings.sort_by(|l, r| l.content_encoding.cmp(&r.content_encoding));
 
                 AssetDetails {
-                    key: key_box_ref.get().deref().0.clone(),
-                    content_type: asset_box_ref.get().content_type.clone(),
+                    key: key_box_ref.0.clone(),
+                    content_type: asset_box_ref.content_type.clone(),
                     encodings,
                 }
             })
@@ -457,7 +457,9 @@ impl State {
     }
 
     pub fn certified_tree(&self, certificate: &[u8]) -> CertifiedTree {
-        let hash_tree = labeled(b"http_assets".to_vec(), self.asset_hashes.as_hash_tree());
+        // FIXME: This call may easily panic if the tree is big enough
+        let hash_tree = labeled(b"http_assets".to_vec(), self.asset_hashes.hash_tree());
+
         let mut serializer = serde_cbor::ser::Serializer::new(vec![]);
         serializer.self_describe().unwrap();
         hash_tree.serialize(&mut serializer).unwrap();
@@ -469,8 +471,7 @@ impl State {
     }
 
     pub fn get(&self, arg: GetArg) -> Result<EncodedAsset, String> {
-        let asset_box = self.get_asset(&arg.key)?;
-        let asset = asset_box.get();
+        let asset = self.get_asset(&arg.key)?;
 
         for enc in arg.accept_encodings.iter() {
             if let Some(asset_enc) = asset.encodings.get(enc) {
@@ -487,8 +488,7 @@ impl State {
     }
 
     pub fn get_chunk(&self, arg: GetChunkArg) -> Result<RcBytes, String> {
-        let asset_box = self.get_asset(&arg.key)?;
-        let asset = asset_box.get();
+        let asset = self.get_asset(&arg.key)?;
 
         let enc = asset
             .encodings
@@ -525,9 +525,7 @@ impl State {
             && self.asset_hashes.get(&index_key).is_some()
         {
             let absence_proof = self.asset_hashes.prove_absence(&path_key);
-            let index_proof = self
-                .asset_hashes
-                .witness_with(&index_key, |it| leaf(it.0.to_vec()));
+            let index_proof = self.asset_hashes.witness(&index_key);
             let combined_proof = merge_hash_trees(absence_proof, index_proof);
             Some(witness_to_header(combined_proof, certificate))
         } else {
@@ -535,9 +533,7 @@ impl State {
         };
 
         if let Some(certificate_header) = index_redirect_certificate {
-            if let Some(asset_box) = self.assets.get(&index_key) {
-                let asset = asset_box.get();
-
+            if let Some(asset) = self.assets.get(&index_key) {
                 if !asset.allow_raw_access() && req.is_raw_domain() {
                     return req.redirect_from_raw_to_certified_domain();
                 }
@@ -569,9 +565,7 @@ impl State {
 
         let certificate_header = witness_to_header(witness_or_absence_proof, certificate);
 
-        if let Ok(asset_box) = self.get_asset(&path_key) {
-            let asset = asset_box.get();
-
+        if let Ok(asset) = self.get_asset(&path_key) {
             if !asset.allow_raw_access() && req.is_raw_domain() {
                 return req.redirect_from_raw_to_certified_domain();
             }
@@ -659,10 +653,9 @@ impl State {
             sha256,
         }: StreamingCallbackToken,
     ) -> Result<StreamingCallbackHttpResponse, String> {
-        let asset_box = self
+        let asset = self
             .get_asset(&Key(key.clone()))
             .map_err(|_| "Invalid token on streaming: key not found.".to_string())?;
-        let asset = asset_box.get();
 
         let enc = asset
             .encodings
@@ -691,11 +684,10 @@ impl State {
     }
 
     pub fn get_asset_properties(&self, key: Key) -> Result<AssetProperties, String> {
-        let asset_box = self
+        let asset = self
             .assets
             .get(&key)
             .ok_or_else(|| "asset not found".to_string())?;
-        let asset = asset_box.get();
 
         Ok(AssetProperties {
             max_age: asset.max_age,
@@ -732,7 +724,7 @@ impl State {
         if self
             .assets
             .get(key)
-            .and_then(|asset| asset.get().is_aliased)
+            .and_then(|asset| asset.is_aliased)
             .unwrap_or(DEFAULT_ALIAS_ENABLED)
         {
             aliased_by(key)
